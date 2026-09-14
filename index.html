@@ -43,7 +43,7 @@ label{display:block;font-weight:700;margin:8px 0 4px}.hidden{display:none!import
 <div><label>評価</label><select id="rating"><option value="0">未評価</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></div>
 <div><label>タグ</label><input id="tags" placeholder="例：小説,仕事,歴史"></div>
 <div class="full"><label>概要説明</label><textarea id="summary"></textarea>
-<p class="notice">書籍概要はopenBDの「内容紹介」を自動取得します。Amazonの概要を直接自動取得するにはAmazon公式APIとバックエンドが必要です。</p></div>
+<p class="notice">書籍情報はopenBDを優先し、取得できない場合はGoogle Booksを試します。</div>
 <div class="full"><label>備考・所感</label><textarea id="notes"></textarea></div>
 </div>
 <button onclick="saveBook()">保存</button><button class="secondary" onclick="cancelForm()">キャンセル</button>
@@ -77,15 +77,57 @@ function saveBook(){
 }
 function persist(){localStorage.setItem(KEY,JSON.stringify(books))}
 async function lookupISBN(code){
- const no=code.replace(/[-\s]/g,"");isbn.value=no;
+ const no=String(code||"").replace(/[-\s]/g,"");
+ showForm();
+ isbn.value=no;
+ title.value="";author.value="";publisher.value="";summary.value="";
+ const originalNotice=document.querySelector("#formCard .notice");
+ if(originalNotice) originalNotice.textContent="書籍情報を検索しています…";
+
+ // まずopenBD、見つからなければGoogle Books APIを使います。
  try{
-  const r=await fetch("https://api.openbd.jp/v1/get?isbn="+encodeURIComponent(no)),d=await r.json(),x=d?.[0],s=x?.summary||{},on=x?.onix||{};
-  if(!x){alert("書誌情報が見つかりません。手入力してください。");showForm();return}
-  title.value=s.title||"";author.value=s.author||"";publisher.value=s.publisher||"";
-  const tc=on?.CollateralDetail?.TextContent;
-  summary.value=Array.isArray(tc)?tc.map(v=>v?.Text||"").filter(Boolean).join("\n"):"";
-  showForm();
- }catch(e){alert("書誌情報を取得できませんでした。手入力してください。");showForm()}
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),7000);
+  const r=await fetch("https://api.openbd.jp/v1/get?isbn="+encodeURIComponent(no),{signal:controller.signal});
+  clearTimeout(timer);
+  if(r.ok){
+   const d=await r.json(),x=d?.[0],s=x?.summary||{},on=x?.onix||{};
+   if(x && (s.title||s.author||s.publisher)){
+    title.value=s.title||"";
+    author.value=s.author||"";
+    publisher.value=s.publisher||"";
+    const tc=on?.CollateralDetail?.TextContent;
+    summary.value=Array.isArray(tc)?tc.map(v=>v?.Text||"").filter(Boolean).join("\n"):"";
+    if(originalNotice) originalNotice.textContent="書籍概要はopenBDの「内容紹介」を自動取得します。Amazonの概要を直接自動取得するにはAmazon公式APIとバックエンドが必要です。";
+    return;
+   }
+  }
+ }catch(e){
+  // openBDが利用できない場合は次のAPIへ進みます。
+ }
+
+ try{
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),7000);
+  const r=await fetch("https://www.googleapis.com/books/v1/volumes?q=isbn:"+encodeURIComponent(no),{signal:controller.signal});
+  clearTimeout(timer);
+  if(r.ok){
+   const d=await r.json(),v=d?.items?.[0]?.volumeInfo;
+   if(v){
+    title.value=v.title||"";
+    author.value=Array.isArray(v.authors)?v.authors.join("、"):"";
+    publisher.value=v.publisher||"";
+    summary.value=v.description||"";
+    if(originalNotice) originalNotice.textContent="書籍情報はGoogle Booksから取得しました。";
+    if(title.value||author.value||publisher.value) return;
+   }
+  }
+ }catch(e){
+  // 最後に手入力へ案内します。
+ }
+
+ if(originalNotice) originalNotice.textContent="書籍情報を自動取得できませんでした。ISBNは読み取れていますので、手入力で登録できます。";
+ alert("ISBN「"+no+"」の書籍情報を自動取得できませんでした。ISBNは読み取れています。手入力で補完してください。");
 }
 async function startScanner(){
  const r=document.getElementById("reader");
