@@ -119,7 +119,7 @@ function render(){
   const amazon="https://www.amazon.co.jp/s?k="+encodeURIComponent(b.isbn||b.title),el=document.createElement("div");el.className="card";
   el.innerHTML="<h3>"+esc(b.title)+"</h3><div class='meta'>"+esc(b.author)+" / "+esc(b.publisher)+"</div><div class='meta'>登録日："+esc(b.date)+"　"+esc(b.status)+"　"+"★".repeat(b.rating||0)+"</div>"+
    (b.summary?"<div class='summary'><b>概要</b><br>"+esc(b.summary)+"</div>":"")+(b.notes?"<div class='summary'><b>所感</b><br>"+esc(b.notes)+"</div>":"")+
-   "<button class='secondary' onclick='window.open("+JSON.stringify(amazon)+","_blank")'>Amazonで見る</button>"+
+   "<button class='secondary' onclick='window.open("+JSON.stringify(amazon)+", \"_blank\")'>Amazonで見る</button>"+
    "<button onclick='editById("+JSON.stringify(b.id)+")'>編集</button><button class='danger' onclick='delBook("+JSON.stringify(b.id)+")'>削除</button>";
   list.appendChild(el);
  });
