@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#6f8f78">
 <link rel="manifest" href="manifest.webmanifest">
 <title>読書記録</title>
-<script src="https://unpkg.com/html5-qrcode" defer></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 <style>
 body{margin:0;background:#f7f6f0;color:#303630;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
 header{background:#6f8f78;color:white;padding:18px 16px} header h1{margin:0;font-size:22px}
@@ -87,12 +87,26 @@ async function lookupISBN(code){
   showForm();
  }catch(e){alert("書誌情報を取得できませんでした。手入力してください。");showForm()}
 }
-function startScanner(){
- const r=document.getElementById("reader");r.classList.remove("hidden");
- if(scanner)return;scanner=new Html5Qrcode("reader");
- scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:260,height:120}},async t=>{
-  if(/^97[89]\d{10}$/.test(t)){await scanner.stop();scanner=null;r.classList.add("hidden");lookupISBN(t)}
- },()=>{}).catch(()=>{scanner=null;alert("カメラを起動できません。HTTPS接続とカメラ権限を確認してください。")});
+async function startScanner(){
+ const r=document.getElementById("reader");
+ if(scanner)return;
+ if(typeof Html5Qrcode === "undefined"){
+  alert("バーコード読み取り機能の読み込みに失敗しました。通信状態を確認して、ページを再読み込みしてください。");
+  return;
+ }
+ r.classList.remove("hidden");
+ try{
+  scanner=new Html5Qrcode("reader");
+  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:260,height:120}},async t=>{
+   if(/^97[89]\d{10}$/.test(t)){
+    await scanner.stop();scanner=null;r.classList.add("hidden");lookupISBN(t);
+   }
+  },()=>{});
+ }catch(e){
+  try{if(scanner)await scanner.clear()}catch(_){}
+  scanner=null;r.classList.add("hidden");
+  alert("カメラを起動できません。Chromeのカメラ権限とHTTPS接続を確認してください。\n\n"+(e?.message||""));
+ }
 }
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function delBook(id){if(confirm("削除しますか？")){books=books.filter(b=>b.id!==id);persist();render()}}
